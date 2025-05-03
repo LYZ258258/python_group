@@ -11,6 +11,7 @@ import jieba
 from wordcloud import WordCloud
 import platform
 from concurrent.futures import ThreadPoolExecutor
+import asyncio
 
 app = Sanic("mySanic")
 executor = None
@@ -160,7 +161,8 @@ async def upload(request):
             f.write(file.body)
 
         # 提交任务
-        await app.ctx.executor.submit(analyser, label)
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(app.ctx.executor, analyser, label)
 
         return res_json({"code": 1, "msg": "上传成功", "data": {"name": filename}}, ensure_ascii=False)
     except Exception as e:
