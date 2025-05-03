@@ -1,5 +1,5 @@
 from sanic import Sanic
-from sanic.response import json as res_json
+from sanic.response import json as res_json, file
 import time
 import os
 import matplotlib
