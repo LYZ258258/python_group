@@ -6,10 +6,12 @@ import time
 app = Sanic("mySanic")
 
 # 确保上传目录存在
-os.makedirs("uploads", exist_ok=True)
+os.makedirs("upload", exist_ok=True)
 
-# 上传书评数据文件接口
-@app.route("/v1/book/crawled/upload", methods=['POST'])
+
+
+# 上传电影数据文件接口
+@app.route("/v1/movie/crawled/upload", methods=['POST'])
 async def upload(request):
     try:
         allow_type = ['.json']  # 允许上传的类型
@@ -21,7 +23,7 @@ async def upload(request):
             return json({"code": 0, "message": "文件格式错误"}, ensure_ascii=False)
 
         # 保存文件
-        path = f"./uploads"
+        path = f"./upload"
         now_time = time.strftime('%Y%m%d%H%M%S', time.localtime())  # 获取当前时间
         filename = now_time + "_" + type[0] + ".json"
 
@@ -31,6 +33,7 @@ async def upload(request):
         return json({"code": 1, "msg": "上传成功", "data": {"name": filename}}, ensure_ascii=False)
     except Exception as e:
         return json({"code": 0, "msg": f"服务器错误: {str(e)}"}, ensure_ascii=False)
+
 
 # 获取图书信息
 @app.route("/v1/book/info", methods=['GET'])

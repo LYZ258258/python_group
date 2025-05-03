@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="d39813e9-ccdf-4122-bd16-fadc35b9e250" name="更改" comment="">
+      <change afterPath="$PROJECT_DIR$/../analysis.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../../课堂实践/chart.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../../课堂实践/chart.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../json/book_comment.json" beforeDir="false" afterPath="$PROJECT_DIR$/../../json/book_comment.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/comment_emotion.json" beforeDir="false" afterPath="$PROJECT_DIR$/comment_emotion.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/comments.jsonl" beforeDir="false" afterPath="$PROJECT_DIR$/comments.jsonl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../output/histogram.png" beforeDir="false" afterPath="$PROJECT_DIR$/../output/histogram.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../output/wordcloud.png" beforeDir="false" afterPath="$PROJECT_DIR$/../output/wordcloud.png" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../../../.." />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 5
+}]]></component>
+  <component name="ProjectId" id="2wa6wMyi3z92pmfnAYkuHSm0Xa8" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "git-widget-placeholder": "master",
+    "nodejs_package_manager_path": "npm",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-5c90d61e3bab-JavaScript-PY-242.23339.19" />
+        <option value="bundled-python-sdk-0029f7779945-399fe30bd8c1-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-242.23339.19" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="应用程序级" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="默认任务">
+      <changelist id="d39813e9-ccdf-4122-bd16-fadc35b9e250" name="更改" comment="" />
+      <created>1746267575109</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1746267575109</updated>
+      <workItem from="1746267576245" duration="41000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>
