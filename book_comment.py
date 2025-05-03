@@ -191,16 +191,16 @@ async def download_image(request):
     try:
         filename = request.args.get("filename")
         if not filename:
-            return res_json({"code": 0, "msg": "缺少 filename 参数"}, status=400)
+            return res_json({"code": 0, "msg": "缺少 filename 参数"}, ensure_ascii=False)
 
         # 安全路径验证
         safe_path = os.path.abspath(os.path.join("sentiment-analysis", filename))
         if not safe_path.startswith(os.path.abspath("sentiment-analysis")):
-            return res_json({"code": 0, "msg": "非法文件路径"}, status=403)
+            return res_json({"code": 0, "msg": "非法文件路径"}, ensure_ascii=False)
 
         # 检查文件是否存在
         if not os.path.exists(safe_path):
-            return res_json({"code": 0, "msg": "文件不存在"}, status=404)
+            return res_json({"code": 0, "msg": "文件不存在"}, ensure_ascii=False)
 
         # 返回文件并触发下载
         return await file(
@@ -208,7 +208,7 @@ async def download_image(request):
             headers={"Content-Disposition": f'attachment; filename="{filename}"'}
         )
     except Exception as e:
-        return res_json({"code": 0, "msg": f"服务器错误: {str(e)}"}, status=500)
+        return res_json({"code": 0, "msg": f"服务器错误: {str(e)}"}, ensure_ascii=False)
 
 
 
