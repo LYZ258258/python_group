@@ -144,27 +144,37 @@ def analyser(label):
 @app.route("/v1/movie/crawled/upload", methods=['POST'])
 async def upload(request):
     try:
-        allow_type = ['.jsonl']  # 允许上传的类型
-        file = request.files.get('file')  # 解析前端传来的文件
-        type = os.path.splitext(file.name)  # 分割文件名
+        allow_type = ['.jsonl']
+        file = request.files.get('file')
         if not file:
             return res_json({"code": 0, "message": "文件未上传"}, ensure_ascii=False)
-        if len(type) == 1 or type[1] not in allow_type:
+
+        # 验证文件类型
+        filename = file.name
+        _, ext = os.path.splitext(filename)
+        if ext.lower() != '.jsonl':
             return res_json({"code": 0, "message": "文件格式错误"}, ensure_ascii=False)
 
-        # 保存文件
-        now_time = time.strftime('%Y%m%d%H%M%S', time.localtime())  # 获取当前时间
-        label = now_time + "_" + type[0]
+        # 生成唯一文件名
+        now_time = time.strftime('%Y%m%d%H%M%S', time.localtime())
+        label = now_time + "_" + os.path.splitext(filename)[0]
         filename = label + ".jsonl"
         path = os.path.join("upload", filename)
+
+        # 保存文件
         with open(path, 'wb') as f:
             f.write(file.body)
 
-        # 提交任务
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(app.ctx.executor, analyser, label)
+        # 提交后台任务
+        app.ctx.executor.submit(analyser, label)  # 直接提交不等待
 
-        return res_json({"code": 1, "msg": "上传成功", "data": {"name": filename}}, ensure_ascii=False)
+        # 立即返回响应
+        return res_json({
+            "code": 1,
+            "msg": "上传成功，分析任务已提交",
+            "data": {"name": filename}
+        }, ensure_ascii=False)
+
     except Exception as e:
         return res_json({"code": 0, "msg": f"服务器错误: {str(e)}"}, ensure_ascii=False)
 
