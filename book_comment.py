@@ -78,7 +78,7 @@ class CommentWordCloud:
 
     def load_stopwords(self):
         """加载停用词"""
-        if self._cached_stopwords is None:
+        if CommentWordCloud._cached_stopwords is None:
             stopwords = set()
             for file in self.stopword_file_names:
                 full_path = os.path.join('stopwords', file)
