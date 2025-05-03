@@ -1,0 +1,72 @@
+基本语法
+curl [options] [URL]
+
+常用选项
+-o <文件名> 将输出保存到指定文件（支持重命名）
+-O 将文件保存到当前目录（使用服务器上的文件名）
+-L 自动跟随重定向（如 301/302）
+-v 显示详细请求/响应信息（调试用）
+-H "头字段: 值" 添加自定义 HTTP 请求头（如 -H "Content-Type: application/json"）
+-X <方法> 指定 HTTP 方法（如 GET, POST, PUT, DELETE）
+-d "数据" 发送 POST 请求的表单数据（默认 Content-Type: application/x-www-form-urlencoded）
+-F "字段=数据" 上传文件或表单数据（Content-Type: multipart/form-data）
+-u 用户名:密码 添加认证信息（如 Basic Auth）
+-A "User-Agent" 设置客户端的 User-Agent
+-k 跳过 SSL 证书验证（不安全，仅测试用）
+-b "cookie=值" 发送 Cookie
+-c <文件> 将服务器返回的 Cookie 保存到文件
+--limit-rate 速度 限制传输速率（如 --limit-rate 1M）
+-x <代理地址> 使用代理服务器（如 -x http://proxy:8080）
+
+
+常见用例
+下载文件
+curl -O http://example.com/file.zip        # 保存为服务器上的文件名
+curl -o custom_name.zip http://example.com/file.zip  # 自定义文件名
+curl -L -O http://example.com/redirected_file.zip  # 跟随重定向下载
+
+发送 GET 请求
+curl http://example.com/api/data
+curl -H "Authorization: Bearer token" http://example.com/protected
+
+发送 POST 请求
+# 表单数据
+curl -d "username=admin&password=123" -X POST http://example.com/login
+# JSON 数据
+curl -d '{"key": "value"}' -H "Content-Type: application/json" -X POST http://example.com/api
+
+上传文件
+# 上传单个文件
+curl -F "file=@/path/to/file.txt" http://example.com/upload
+# 上传文件并附加字段
+curl -F "file=@image.jpg" -F "description=My Photo" http://example.com/upload
+
+认证
+# Basic 认证
+curl -u username:password http://example.com/protected
+# Bearer Token 认证
+curl -H "Authorization: Bearer YOUR_TOKEN" http://example.com/api
+
+调试与查看响应头
+curl -v http://example.com           # 显示详细请求/响应过程
+curl -i http://example.com           # 显示响应头 + 响应体
+
+使用代理
+curl -x http://proxy-server:8080 http://example.com
+
+
+注意事项
+1.  参数顺序：某些参数的顺序会影响行为（如 -H 头字段的顺序）。
+2.  HTTPS 证书：生产环境避免使用 -k（跳过证书验证）。
+3.  速率限制：用 --limit-rate 避免占用过多带宽。
+4.  数据编码：确保 POST 数据的编码与 Content-Type 头匹配（如 JSON 需设为 application/json）。
+
+
+示例 bash 复制 下载  # 测试 API（发送 JSON，查看完整响应）
+curl -X POST -H "Content-Type: application/json" -d '{"name": "Alice"}' -i http://api.example.com/users
+
+# 下载并保存文件（跟随重定向）
+curl -L -O https://example.com/download/latest.zip
+
+# 调试请求（查看详细日志）
+curl -v -H "Accept: application/json" http://api.example.com/data

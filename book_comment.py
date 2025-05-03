@@ -16,9 +16,9 @@ async def upload(request):
         file = request.files.get('file')  # 解析前端传来的文件
         type = os.path.splitext(file.name)  # 分割文件名
         if not file:
-            return json({"code": 0, "message": "文件未上传"})
+            return json({"code": 0, "message": "文件未上传"}, ensure_ascii=False)
         if len(type) == 1 or type[1] not in allow_type:  # 查看是否为JSON文件
-            return json({"code": 0, "message": "文件格式错误"})
+            return json({"code": 0, "message": "文件格式错误"}, ensure_ascii=False)
 
         # 保存文件
         path = f"./uploads"
@@ -28,31 +28,31 @@ async def upload(request):
         with open(path + "/" + filename, 'wb') as f:
             f.write(file.body)
 
-        return json({"code": 1, "msg": "上传成功", "data": {"name": filename}})
+        return json({"code": 1, "msg": "上传成功", "data": {"name": filename}}, ensure_ascii=False)
     except Exception as e:
-        return json({"code": 0, "msg": f"服务器错误: {str(e)}"}, status=500)
+        return json({"code": 0, "msg": f"服务器错误: {str(e)}"}, ensure_ascii=False)
 
 # 获取图书信息
 @app.route("/v1/book/info", methods=['GET'])
 async def get_books_info(request):
     book_id = request.args.get('book_id')
     if not book_id:
-        return json({"code": 40002, "msg": "缺少 book_id 参数"}, status=400)
+        return json({"code": 0, "msg": "缺少 book_id 参数"}, ensure_ascii=False)
 
     # 示例数据，替换为实际数据库查询
     book_info = {"id": book_id, "title": "示例图书"}
-    return json({"code": 200, "msg": "成功", "data": book_info})
+    return json({"code": 1, "msg": "成功", "data": book_info}, ensure_ascii=False)
 
 # 获取书评信息
 @app.route("/v1/book/comment", methods=['GET'])
 async def get_book_comments(request):
     book_id = request.args.get('book_id')
     if not book_id:
-        return json({"code": 40002, "msg": "缺少 book_id 参数"}, status=400)
+        return json({"code": 0, "msg": "缺少 book_id 参数"}, ensure_ascii=False)
 
     # 示例数据，替换为实际查询
     comments = [{"id": 1, "content": "好评！"}]
-    return json({"code": 200, "msg": "成功", "data": comments})
+    return json({"code": 1, "msg": "成功", "data": comments}, ensure_ascii=False)
 
 
 if __name__ == '__main__':
