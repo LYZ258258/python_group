@@ -168,15 +168,48 @@ async def upload(request):
         # 提交后台任务
         app.ctx.executor.submit(analyser, label)  # 直接提交不等待
 
-        # 立即返回响应
+        # 生成下载链接（label 即图片文件名前缀）
+        download_link = f"/v1/image/download?filename={label}.png"
+
         return res_json({
             "code": 1,
             "msg": "上传成功，分析任务已提交",
-            "data": {"name": filename}
+            "data": {
+                "name": filename,
+                "download_url": download_link  # 新增下载链接
+            }
         }, ensure_ascii=False)
 
     except Exception as e:
         return res_json({"code": 0, "msg": f"服务器错误: {str(e)}"}, ensure_ascii=False)
+
+
+# 新增下载接口 ----------------------------------------------------
+@app.route("/v1/image/download", methods=['GET'])
+async def download_image(request):
+    """下载生成的词云图片"""
+    try:
+        filename = request.args.get("filename")
+        if not filename:
+            return res_json({"code": 0, "msg": "缺少 filename 参数"}, status=400)
+
+        # 安全路径验证
+        safe_path = os.path.abspath(os.path.join("sentiment-analysis", filename))
+        if not safe_path.startswith(os.path.abspath("sentiment-analysis")):
+            return res_json({"code": 0, "msg": "非法文件路径"}, status=403)
+
+        # 检查文件是否存在
+        if not os.path.exists(safe_path):
+            return res_json({"code": 0, "msg": "文件不存在"}, status=404)
+
+        # 返回文件并触发下载
+        return await file(
+            safe_path,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+    except Exception as e:
+        return res_json({"code": 0, "msg": f"服务器错误: {str(e)}"}, status=500)
+
 
 
 # # 获取图书信息
