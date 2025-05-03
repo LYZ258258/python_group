@@ -10,6 +10,7 @@ os.makedirs("uploads", exist_ok=True)
 # 上传书评数据文件接口
 @app.route("/v1/book/crawled/upload", methods=['POST'])
 async def upload(request):
+    print("/v1/book/crawled/upload")
     try:
         uploaded_file = request.files.get('file')
         if not uploaded_file:
@@ -32,6 +33,7 @@ async def upload(request):
 # 获取图书信息
 @app.route("/v1/book/info", methods=['GET'])
 async def get_books_info(request):
+    print("/v1/book/info")
     book_id = request.args.get('book_id')
     if not book_id:
         return json({"code": 40002, "msg": "缺少 book_id 参数"}, status=400)
@@ -43,6 +45,7 @@ async def get_books_info(request):
 # 获取书评信息
 @app.route("/v1/book/comment", methods=['GET'])
 async def get_book_comments(request):
+    print("/v1/book/comment")
     book_id = request.args.get('book_id')
     if not book_id:
         return json({"code": 40002, "msg": "缺少 book_id 参数"}, status=400)
