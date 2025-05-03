@@ -31,6 +31,7 @@ os.makedirs("sentiment-analysis", exist_ok=True)
 
 class CommentWordCloud:
     """词云类"""
+    _cached_stopwords = None  # 类级缓存
 
     def __init__(self, label):
         self.stopword_file_names = ['cn_all_stopwords.txt', 'baidu_stopwords.txt', 'scu_stopwords.txt', 'hit_stopwords.txt',
@@ -42,7 +43,6 @@ class CommentWordCloud:
         self.scale = 2
         self.collocations = False
         self.label = label
-        _cached_stopwords = None  # 类级缓存
 
     def load_comments(self):
         """加载评论"""
