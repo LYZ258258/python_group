@@ -59,7 +59,7 @@ class CommentWordCloud:
         plt.axis("off")
 
         # 添加增强型标题
-        plt.rcParams["font.sans-serif"] = ["Microsoft YaHei"]  # 确保中文显示
+        plt.rcParams["font.sans-serif"] = ["WenQuanYi Micro Hei"]  # Ubuntu 中文字体名称
         plt.rcParams["axes.unicode_minus"] = False
         title_text = f'《{movie_name}》评论词云分析\n（共{comment_count}条有效评论）'
         plt.title(title_text,
@@ -149,14 +149,14 @@ class CommentSemanticAnalyser:
         self.positive = 0
         self.negative = 0
 
-    def analyze_sentiment(self, comment_count, comment_list):
+    def analyze_sentiment(self, comment_count, comment_list, id):
         """显示带强制刷新的进度条"""
         if comment_count == 0:
             print("警告：没有需要处理的评论数据！")
             return
 
         try:
-            with tqdm(total=comment_count, desc="分析情感", unit="comment") as pbar:
+            with tqdm(total=comment_count, desc=f"分析 {id} ing", unit="comment") as pbar:
                 for comment in comment_list:
                     try:
                         # 执行情感分析
@@ -279,7 +279,7 @@ class Comment_analyser:
     def make_analyse(self):
 
         # 情感分析
-        self.positives, self.negatives = self.comment_semantic_analyser.analyze_sentiment(self.comment_count, self.comment_list)
+        self.positives, self.negatives = self.comment_semantic_analyser.analyze_sentiment(self.comment_count, self.comment_list, self.id)
 
         # 绘制饼状图
         self.histogram_path =  self.comment_histogram.make_piechart(self.id, self.out_path, self.movie_name, self.comment_count, self.positives, self.negatives)
