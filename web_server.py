@@ -203,7 +203,7 @@ async def global_handler(request, exception):
         "code": 0,
         "msg": "服务器内部错误",
         "error": str(exception)
-    }, status=500)
+    }, ensure_ascii=False)
 
 
 if __name__ == '__main__':
