@@ -17,7 +17,7 @@ app = Sanic("SentimentAnalysisAPI")
 
 # 日志配置函数
 def configure_logging():
-    """配置符合Sanic规范的日志系统"""
+    """配置日志系统（文件+控制台）"""
     log_dir = "logs"
     os.makedirs(log_dir, exist_ok=True)
 
@@ -26,7 +26,15 @@ def configure_logging():
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
 
-    # 配置访问日志
+    # ================= 控制台处理器 =================
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(
+        logging.DEBUG if os.getenv("DEBUG") else logging.INFO
+    )
+
+    # ================= 文件处理器 =================
+    # 访问日志
     access_handler = TimedRotatingFileHandler(
         filename=os.path.join(log_dir, 'access.log'),
         when='midnight',
@@ -38,7 +46,7 @@ def configure_logging():
     access_logger.addHandler(access_handler)
     access_logger.setLevel(logging.INFO)
 
-    # 配置错误日志
+    # 错误日志
     error_handler = TimedRotatingFileHandler(
         filename=os.path.join(log_dir, 'error.log'),
         when='midnight',
@@ -50,7 +58,7 @@ def configure_logging():
     error_logger.addHandler(error_handler)
     error_logger.setLevel(logging.ERROR)
 
-    # 自定义应用日志
+    # 应用业务日志
     app_handler = TimedRotatingFileHandler(
         filename=os.path.join(log_dir, 'application.log'),
         when='midnight',
@@ -58,9 +66,12 @@ def configure_logging():
         encoding='utf-8'
     )
     app_handler.setFormatter(formatter)
+
+    # ================= 应用日志器配置 =================
     app_logger = logging.getLogger("SA-Processor")
-    app_logger.addHandler(app_handler)
-    app_logger.setLevel(logging.INFO)
+    app_logger.addHandler(app_handler)  # 文件输出
+    app_logger.addHandler(console_handler)  # 控制台输出
+    app_logger.setLevel(logging.DEBUG if os.getenv("DEBUG") else logging.INFO)
 
     # 存储到上下文
     app.ctx.logger = app_logger
@@ -212,11 +223,11 @@ async def global_exception_handler(request, exception):
 
 
 if __name__ == '__main__':
-    # 生产环境建议设置 access_log=False
+    # 开发模式：DEBUG=1 python web_server.py
     app.run(
         host='0.0.0.0',
         port=8000,
         workers=4,
-        debug=False,
-        access_log=True  # Sanic内置访问日志
+        debug=os.getenv("DEBUG", "").lower() == "true",  # 根据环境变量控制
+        access_log=False  # 禁用Sanic内置访问日志（已自定义）
     )
