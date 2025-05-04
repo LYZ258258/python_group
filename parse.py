@@ -260,7 +260,7 @@ class Comment_analyser:
             logger.info("正在加载停用词表...")
             stopwords = set()
             for file in self.stopword_file_names:
-                full_path = os.path.join('../stopwords', file)
+                full_path = os.path.join('./stopwords', file)
                 try:
                     with open(full_path, 'r', encoding='utf-8') as f:
                         stopwords.update(line.strip() for line in f)
