@@ -7,10 +7,10 @@ matplotlib.use('Agg')  # 非交互式后端，避免 GUI 线程冲突
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import parse
-import netifaces
+import requests
 
-# 本机ip列表
-ips = []
+# 本机公网ip
+ip = None
 # 端口号
 port=8000
 
@@ -68,11 +68,9 @@ async def upload(request):
         app.ctx.executor.submit(analyser, id)  # 直接提交不等待
 
         # 生成下载链接（id 即图片文件名前缀）
-        download_link = []
-        for ip in ips:
-            link = f"http://{ip}:{port}/v1/image/download?filename={id}.zip"
-            download_link.append(link)
-
+        download_link = f"/v1/image/download?filename={id}.zip"
+        if ip is not None:
+            download_link += f"http://{ip}:{port}"
 
         return res_json({
             "code": 1,
@@ -113,13 +111,19 @@ async def download_image(request):
         return res_json({"code": 0, "msg": f"服务器错误: {str(e)}"}, ensure_ascii=False)
 
 
+def get_public_ip():
+    """获取公网 IP"""
+    try:
+        response = requests.get("https://api.ipify.org")
+        return response.text
+    except:
+        try:
+            response = requests.get("https://httpbin.org/ip")
+            return response.json()["origin"]
+        except:
+            return None
+
+
 if __name__ == '__main__':
-    for interface in netifaces.interfaces():
-        addrs = netifaces.ifaddresses(interface)
-        # 获取 IPv4 地址
-        if netifaces.AF_INET in addrs:
-            for addr in addrs[netifaces.AF_INET]:
-                ip = addr["addr"]
-                if ip != "127.0.0.1":
-                    ips.append(ip)
+    ip = get_public_ip()
     app.run(host='0.0.0.0', port=port, workers=4, debug=False)
