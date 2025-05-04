@@ -7,6 +7,12 @@ matplotlib.use('Agg')  # 非交互式后端，避免 GUI 线程冲突
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import parse
+import netifaces
+
+# 本机ip列表
+ips = []
+# 端口号
+port=8000
 
 app = Sanic("mySanic")
 executor = None
@@ -61,15 +67,19 @@ async def upload(request):
         # 提交后台任务
         app.ctx.executor.submit(analyser, id)  # 直接提交不等待
 
-        # 生成下载链接（label 即图片文件名前缀）
-        download_link = f"/v1/image/download?filename={id}.zip"
+        # 生成下载链接（id 即图片文件名前缀）
+        download_link = []
+        for ip in ips:
+            link = f"http://{ip}:{port}/v1/image/download?filename={id}.zip"
+            download_link.append(link)
+
 
         return res_json({
             "code": 1,
             "msg": "上传成功，分析任务已提交",
             "data": {
                 "name": filename,
-                "download_url": download_link  # 新增下载链接
+                "download_url": download_link
             }
         }, ensure_ascii=False)
 
@@ -104,4 +114,12 @@ async def download_image(request):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000, workers=4, debug=False)
+    for interface in netifaces.interfaces():
+        addrs = netifaces.ifaddresses(interface)
+        # 获取 IPv4 地址
+        if netifaces.AF_INET in addrs:
+            for addr in addrs[netifaces.AF_INET]:
+                ip = addr["addr"]
+                if ip != "127.0.0.1":
+                    ips.append(ip)
+    app.run(host='0.0.0.0', port=port, workers=4, debug=False)
