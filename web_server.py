@@ -5,7 +5,7 @@ import time
 import os
 import logging
 from logging.handlers import TimedRotatingFileHandler
-from no_log import parse
+import parse
 import matplotlib
 
 matplotlib.use('Agg')  # 非交互式后端
