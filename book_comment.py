@@ -156,7 +156,7 @@ async def upload(request):
         # 生成唯一文件名
         now_time = time.strftime('%Y%m%d%H%M%S', time.localtime())
         id = now_time + "_" + os.path.splitext(filename)[0]
-        filename = id + ".jsonl"
+        filename = id + ".json"
         path = os.path.join("upload", filename)
 
         # 保存文件
