@@ -143,7 +143,6 @@ def analyser(id):
 @app.route("/v1/movie/crawled/upload", methods=['POST'])
 async def upload(request):
     try:
-        allow_type = ['.jsonl']
         file = request.files.get('file')
         if not file:
             return res_json({"code": 0, "message": "文件未上传"}, ensure_ascii=False)
@@ -151,7 +150,7 @@ async def upload(request):
         # 验证文件类型
         filename = file.name
         _, ext = os.path.splitext(filename)
-        if ext.lower() != '.jsonl':
+        if ext.lower() != '.json':
             return res_json({"code": 0, "message": "文件格式错误"}, ensure_ascii=False)
 
         # 生成唯一文件名
