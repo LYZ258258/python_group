@@ -1,266 +1,216 @@
-import json
-import uuid
-import os
-import shutil
-import asyncio
-from pathlib import Path
-from sanic import Sanic, response
-from modelscope.pipelines import pipeline
-from modelscope.utils.constant import Tasks
+from sanic import Sanic
+from sanic.response import json as res_json, file
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+import time
+import os
+import logging
+from logging.handlers import TimedRotatingFileHandler
+import server3 as parse
+import matplotlib
 
-# 服务配置
-app = Sanic("SentimentAnalysisCloud")
-app.config.update({
-    "TEMP_DIR": "/data/tmp_analysis",
-    "MAX_FILE_SIZE": 10 * 1024 * 1024,  # 10MB
-    "ALLOWED_EXTENSIONS": {"jsonl"},
-    "MAX_CONCURRENT_TASKS": 2,          # 最大并行任务数
-    "MODEL_WORKERS": 1,                 # 模型并行线程数
-    "BATCH_SIZE": 64,                   # 批处理大小
-    "TASK_TIMEOUT": 3600                # 任务超时时间(秒)
-})
+matplotlib.use('Agg')  # 非交互式后端
 
-# 全局资源初始化
-model = pipeline(
-    Tasks.text_classification,
-    'iic/nlp_structbert_sentiment-classification_chinese-base',
-    device='cpu'
-)
-model_executor = ThreadPoolExecutor(max_workers=app.config.MODEL_WORKERS)
+app = Sanic("SentimentAnalysisAPI")
 
-class AnalysisTask:
-    def __init__(self):
-        self.tasks = {}
-        self.lock = asyncio.Lock()
-        self.task_queue = asyncio.Queue()
-        Path(app.config.TEMP_DIR).mkdir(parents=True, exist_ok=True)
 
-    async def task_worker(self):
-        """任务处理工作线程"""
-        while True:
-            task_id = await self.task_queue.get()
-            async with self.lock:
-                task = self.tasks[task_id]
-                task["status"] = "processing"
-                task["start_time"] = datetime.now().isoformat()
-            
-            try:
-                await self.process_task(task_id)
-            except Exception as e:
-                async with self.lock:
-                    task["status"] = "error"
-                    task["error"] = str(e)
-            finally:
-                self.task_queue.task_done()
+def configure_logging():
+    """统一日志配置（控制台+文件）"""
+    log_dir = "logs"
+    os.makedirs(log_dir, exist_ok=True)
 
-    async def create_task(self, file_path):
-        """创建新任务"""
-        task_id = str(uuid.uuid4())
-        task_dir = Path(app.config.TEMP_DIR) / task_id
-        task_dir.mkdir()
+    # 通用日志格式
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
 
-        async with self.lock:
-            self.tasks[task_id] = {
-                "id": task_id,
-                "status": "queued",
-                "input": str(task_dir / "input.jsonl"),
-                "output": str(task_dir / "result.json"),
-                "progress": 0.0,
-                "error": None,
-                "created": datetime.now().isoformat(),
-                "start_time": None,
-                "end_time": None
-            }
-        
-        shutil.move(file_path, self.tasks[task_id]["input"])
-        await self.task_queue.put(task_id)
-        return task_id
+    # ========== 控制台处理器 ==========
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_level = logging.DEBUG if os.getenv("DEBUG") else logging.INFO
+    console_handler.setLevel(console_level)
 
-task_mgr = AnalysisTask()
+    # ========== 文件处理器 ==========
+    # 应用日志
+    app_handler = TimedRotatingFileHandler(
+        filename=os.path.join(log_dir, 'application.log'),
+        when='midnight',
+        backupCount=7,
+        encoding='utf-8'
+    )
+    app_handler.setFormatter(formatter)
+    app_handler.setLevel(logging.INFO)
 
-@app.listener('after_server_start')
-async def init_workers(app, loop):
-    for _ in range(app.config.MAX_CONCURRENT_TASKS):
-        app.add_task(task_mgr.task_worker())
+    # 配置根日志器（所有模块继承）
+    root_logger = logging.getLogger()
+    root_logger.addHandler(console_handler)
+    root_logger.addHandler(app_handler)
+    root_logger.setLevel(logging.DEBUG)
 
-@app.post("/api/v1/analyze")
-async def upload_file(request):
-    """文件上传接口"""
-    # 验证文件存在
-    if not (upload_file := request.files.get('file')):
-        return response.json({"error": "No file provided"}, status=400)
-    
-    # 验证文件类型
-    if not _is_valid_file(upload_file.name):
-        return response.json({"error": "Invalid file type"}, status=400)
-    
-    # 验证文件大小
-    if len(upload_file.body) > app.config.MAX_FILE_SIZE:
-        return response.json({"error": "File too large"}, status=413)
+    # Sanic专用日志配置
+    # 访问日志
+    access_handler = TimedRotatingFileHandler(
+        filename=os.path.join(log_dir, 'access.log'),
+        when='midnight',
+        backupCount=7,
+        encoding='utf-8'
+    )
+    access_handler.setFormatter(formatter)
+    logging.getLogger("sanic.access").addHandler(access_handler)
 
-    # 保存临时文件
-    temp_path = Path(app.config.TEMP_DIR) / f"upload_{uuid.uuid4().hex}.jsonl"
-    with open(temp_path, "wb") as f:
-        f.write(upload_file.body)
+    # 错误日志
+    error_handler = TimedRotatingFileHandler(
+        filename=os.path.join(log_dir, 'error.log'),
+        when='midnight',
+        backupCount=7,
+        encoding='utf-8'
+    )
+    error_handler.setFormatter(formatter)
+    logging.getLogger("sanic.error").addHandler(error_handler)
 
-    # 创建任务
+
+configure_logging()
+
+
+@app.before_server_start
+async def init_resources(app, _):
+    """初始化资源"""
     try:
-        task_id = await task_mgr.create_task(temp_path)
-        return response.json({
-            "task_id": task_id,
-            "status_url": f"/api/v1/tasks/{task_id}",
-            "download_url": f"/api/v1/results/{task_id}"
+        app.ctx.executor = ThreadPoolExecutor(max_workers=4)
+        app.ctx.logger = logging.getLogger("SA-Processor")
+        app.ctx.logger.info("🔄 初始化线程池（4 workers）")
+    except Exception as e:
+        logging.error(f"资源初始化失败: {str(e)}", exc_info=True)
+        raise
+
+
+@app.after_server_stop
+async def cleanup_resources(app, _):
+    """清理资源"""
+    try:
+        app.ctx.executor.shutdown(wait=True)
+        app.ctx.logger.info("🛑 线程池已关闭")
+    except Exception as e:
+        logging.error(f"资源清理失败: {str(e)}", exc_info=True)
+
+
+os.makedirs("upload", exist_ok=True)
+os.makedirs("sentiment-analysis", exist_ok=True)
+
+
+def background_task(task_id):
+    """后台分析任务"""
+    task_logger = logging.getLogger(f"SA-Processor.Task.{task_id}")
+    try:
+        task_logger.info(f"🔍 开始处理任务 {task_id}")
+        analyser = parse.Comment_analyser("upload", "sentiment-analysis", task_id)
+        analyser.make_analyse()
+        task_logger.info(f"✅ 任务完成 {task_id}")
+    except Exception as e:
+        task_logger.error(f"❌ 任务失败 {task_id}: {str(e)}", exc_info=True)
+
+
+@app.route("/v1/movie/crawled/upload", methods=['POST'])
+async def handle_upload(request):
+    """文件上传接口"""
+    logger = app.ctx.logger
+    try:
+        # 文件验证
+        upload_file = request.files.get('file')
+        if not upload_file:
+            logger.warning("收到无文件请求")
+            return res_json({"code": 0, "message": "文件未上传"}, ensure_ascii=False)
+
+        # 文件名处理
+        filename = upload_file.name
+        if not filename.lower().endswith('.json'):
+            logger.warning(f"非法文件类型: {filename}")
+            return res_json({"code": 0, "message": "仅支持JSON文件"}, ensure_ascii=False)
+
+        # 生成任务ID
+        timestamp = time.strftime('%Y%m%d%H%M%S', time.localtime())
+        task_id = f"{timestamp}_{os.path.splitext(filename)[0]}"
+        save_path = os.path.join("upload", f"{task_id}.json")
+
+        # 保存文件
+        with open(save_path, 'wb') as f:
+            f.write(upload_file.body)
+        logger.info(f"📥 文件保存成功: {save_path}")
+
+        # 提交后台任务
+        app.ctx.executor.submit(background_task, task_id)
+        logger.info(f"🚀 任务已提交: {task_id}")
+
+        return res_json({
+            "code": 1,
+            "msg": "上传成功",
+            "data": {
+                "task_id": task_id,
+                "download_url": f"/v1/image/download?filename={task_id}.zip"
+            }
         })
     except Exception as e:
-        return response.json({"error": str(e)}, status=500)
+        logger.error(f"上传处理异常: {str(e)}", exc_info=True)
+        return res_json({"code": 0, "msg": "服务器错误"}, status=500)
 
-async def process_task(task_id):
-    """任务处理核心逻辑"""
-    task = task_mgr.tasks[task_id]
-    
+
+@app.route("/v1/image/download", methods=['GET'])
+async def handle_download(request):
+    """文件下载接口"""
+    logger = app.ctx.logger
     try:
-        # 第一阶段：准备数据
-        batch = []
-        total = 0
-        input_path = Path(task["input"])
-        
-        # 统计总数
-        with open(input_path, "r", encoding="utf-8") as f:
-            total = sum(1 for line in f if line.strip())
-        
-        # 第二阶段：批处理分析
-        with open(input_path, "r", encoding="utf-8") as in_file, \
-             open(task["output"], "w", encoding="utf-8") as out_file:
-            
-            out_file.write("[\n")
-            first_item = True
-            current_count = 0
-            
-            # 分批读取
-            for line in in_file:
-                if not line.strip():
-                    continue
-                
-                try:
-                    data = json.loads(line)
-                    text = data.get("content", "").strip()
-                    if text:
-                        batch.append(text)
-                except json.JSONDecodeError:
-                    continue
-                
-                # 批量处理
-                if len(batch) >= app.config.BATCH_SIZE:
-                    await _process_batch(batch, out_file, task, current_count, total, first_item)
-                    current_count += len(batch)
-                    batch = []
-                    first_item = False
-            
-            # 处理剩余批次
-            if batch:
-                await _process_batch(batch, out_file, task, current_count, total, first_item)
-            
-            out_file.write("\n]")
+        filename = request.args.get("filename")
+        if not filename:
+            logger.warning("非法下载请求: 缺少文件名")
+            return res_json({"code": 0, "msg": "缺少filename参数"}, status=400)
 
-        # 更新任务状态
-        async with task_mgr.lock:
-            task["status"] = "completed"
-            task["progress"] = 100.0
-            task["end_time"] = datetime.now().isoformat()
+        # 安全验证
+        if not filename.endswith('.zip') or '/' in filename:
+            logger.warning(f"潜在路径遍历攻击: {filename}")
+            return res_json({"code": 0, "msg": "非法文件请求"}, status=403)
 
-    finally:
-        # 清理输入文件
-        if input_path.exists():
-            input_path.unlink()
+        file_path = os.path.abspath(os.path.join("sentiment-analysis", filename))
+        if not file_path.startswith(os.path.abspath("sentiment-analysis")):
+            logger.warning(f"路径越界尝试: {filename}")
+            return res_json({"code": 0, "msg": "非法文件路径"}, status=403)
 
-async def _process_batch(batch, out_file, task, current_count, total, first_item):
-    """处理单个批次"""
-    # 执行模型推理
-    loop = asyncio.get_event_loop()
-    results = await loop.run_in_executor(
-        model_executor,
-        lambda: [model(text) for text in batch]
-    )
-    
-    # 写入结果
-    for i, (text, res) in enumerate(zip(batch, results)):
-        labels = res["labels"]
-        scores = res["scores"]
-        
-        record = {
-            "is_positive": int(scores[labels.index("正面")] >= 0.5),
-            "positive_probs": scores[labels.index("正面")],
-            "negative_probs": scores[labels.index("负面")]
-        }
-        
-        # 格式化输出
-        prefix = ",\n" if not first_item or i > 0 else ""
-        out_file.write(f"{prefix}{json.dumps(record, ensure_ascii=False)}")
-    
-    # 更新进度
-    processed = current_count + len(batch)
-    progress = min(99.9, processed / total * 100)
-    async with task_mgr.lock:
-        task["progress"] = round(progress, 1)
+        if not os.path.exists(file_path):
+            logger.warning(f"文件不存在: {filename}")
+            return res_json({"code": 0, "msg": "文件未找到"}, status=404)
 
-@app.get("/api/v1/tasks/<task_id>")
-async def get_task_status(request, task_id):
-    """获取任务状态"""
-    async with task_mgr.lock:
-        if task_id not in task_mgr.tasks:
-            return response.json({"error": "Task not found"}, status=404)
-        
-        task = task_mgr.tasks[task_id]
-        return response.json({
-            "id": task["id"],
-            "status": task["status"],
-            "progress": task["progress"],
-            "created": task["created"],
-            "start_time": task["start_time"],
-            "end_time": task["end_time"],
-            "error": task["error"]
-        })
-
-@app.get("/api/v1/results/<task_id>")
-async def download_result(request, task_id):
-    """下载结果文件"""
-    async with task_mgr.lock:
-        if task_id not in task_mgr.tasks:
-            return response.json({"error": "Task not found"}, status=404)
-        
-        task = task_mgr.tasks[task_id]
-        if task["status"] != "completed":
-            return response.json({"error": "Task not completed"}, status=400)
-        
-        output_path = Path(task["output"])
-        if not output_path.exists():
-            return response.json({"error": "Result file missing"}, status=500)
-        
-        return await response.file(
-            output_path,
-            filename="analysis_result.json",
-            mime_type="application/json"
+        logger.info(f"📤 开始下载: {filename}")
+        return await file(
+            file_path,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
         )
+    except Exception as e:
+        logger.error(f"下载处理异常: {str(e)}", exc_info=True)
+        return res_json({"code": 0, "msg": "下载错误"}, status=500)
 
-@app.listener('after_server_stop')
-async def cleanup(app, loop):
-    """清理资源"""
-    # 清理临时目录
-    shutil.rmtree(app.config.TEMP_DIR, ignore_errors=True)
-    # 关闭线程池
-    model_executor.shutdown()
 
-def _is_valid_file(filename):
-    return ('.' in filename and 
-            filename.rsplit('.', 1)[1].lower() in app.config.ALLOWED_EXTENSIONS)
+@app.exception(Exception)
+async def global_handler(request, exception):
+    """全局异常处理"""
+    logging.error(
+        "未捕获异常",
+        exc_info=exception,
+        extra={
+            "path": request.path,
+            "method": request.method,
+            "ip": request.remote_addr
+        }
+    )
+    return res_json({
+        "code": 0,
+        "msg": "服务器内部错误",
+        "error": str(exception)
+    }, status=500)
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     app.run(
-        host="0.0.0.0",
+        host='0.0.0.0',
         port=8000,
-        access_log=False,
-        motd=False,
-        auto_reload=False
+        workers=4,
+        debug=os.getenv("DEBUG", "false").lower() == "true",
+        access_log=False
     )

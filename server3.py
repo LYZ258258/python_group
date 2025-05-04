@@ -1,178 +1,288 @@
+import matplotlib.pyplot as plt
+import jieba
+from wordcloud import WordCloud
+import platform
+import zipfile
 import json
-import uuid
-import os
-import shutil
-from pathlib import Path
-from tqdm import tqdm
-from sanic import Sanic, response
 from modelscope.pipelines import pipeline
 from modelscope.utils.constant import Tasks
+import os
+from tqdm import tqdm
+import logging
+import traceback
 
-app = Sanic("SentimentAnalysisService")
-app.config.update({
-    "TEMP_DIR": "./analysis_tasks",
-    "MAX_FILE_SIZE": 10 * 1024 * 1024,  # 10MB
-    "ALLOWED_EXTENSIONS": {'jsonl'}
-})
+# 获取模块日志器（继承主程序配置）
+logger = logging.getLogger(__name__)
 
-# 初始化情感分析模型（保持原有分析逻辑）
-sentiment_analysis = pipeline(
-    Tasks.text_classification,
-    'iic/nlp_structbert_sentiment-classification_chinese-base'
-)
 
-class TaskManager:
+class CommentWordCloud:
+    """词云生成器"""
+
     def __init__(self):
-        self.tasks = {}
-        Path(app.config.TEMP_DIR).mkdir(parents=True, exist_ok=True)
-
-    def create_task(self, input_file):
-        """创建新任务并转移文件"""
-        task_id = str(uuid.uuid4())
-        task_dir = Path(app.config.TEMP_DIR) / task_id
-        task_dir.mkdir()
-
-        self.tasks[task_id] = {
-            "status": "processing",
-            "input": str(task_dir / "input.jsonl"),
-            "output": str(task_dir / "result.json"),
-            "progress": 0.0,
-            "error": None
+        self.config = {
+            'width': 1600,
+            'height': 1200,
+            'max_words': 300,
+            'background_color': 'white',
+            'scale': 2,
+            'collocations': False
         }
-        
-        shutil.move(input_file, self.tasks[task_id]["input"])
-        return task_id
+        logger.debug("词云生成器初始化")
 
-task_mgr = TaskManager()
-
-def validate_file(filename):
-    """文件验证（保持原有格式要求）"""
-    return ('.' in filename and 
-            filename.rsplit('.', 1)[1].lower() == 'jsonl')
-
-@app.post("/upload")
-async def upload_file(request):
-    """文件上传接口（保持原有输入格式）"""
-    # 验证文件
-    upload_file = request.files.get('file')
-    if not upload_file:
-        return response.json({"error": "未上传文件"}, status=400)
-    
-    if not validate_file(upload_file.name):
-        return response.json({"error": "仅支持.jsonl格式文件"}, status=400)
-
-    if len(upload_file.body) > app.config.MAX_FILE_SIZE:
-        return response.json({"error": "文件超过10MB限制"}, status=413)
-
-    # 保存临时文件
-    temp_path = Path(app.config.TEMP_DIR) / f"upload_{uuid.uuid4().hex}.jsonl"
-    with open(temp_path, "wb") as f:
-        f.write(upload_file.body)
-
-    # 创建任务
-    try:
-        task_id = task_mgr.create_task(temp_path)
-        app.add_task(process_task(task_id))
-        return response.json({
-            "task_id": task_id,
-            "status": "/task/status/" + task_id,
-            "result": "/task/result/" + task_id
-        })
-    except Exception as e:
-        return response.json({"error": str(e)}, status=500)
-
-async def process_task(task_id):
-    """处理任务（保持原有输出格式）"""
-    task = task_mgr.tasks[task_id]
-    
-    try:
-        # 统计有效行数
-        total = 0
-        with open(task["input"], "r", encoding="utf-8") as f:
-            for line in f:
-                if line.strip(): total +=1
-        
-        # 初始化输出文件
-        with open(task["output"], "w", encoding="utf-8") as out_file:
-            out_file.write("[\n")
-            first_item = True
-            
-            with tqdm(total=total, desc="分析进度") as pbar:
-                with open(task["input"], "r", encoding="utf-8") as in_file:
-                    for idx, line in enumerate(in_file):
-                        try:
-                            data = json.loads(line)
-                            text = data.get("content", "").strip()
-                            if not text:
-                                continue
-                            
-                            # 执行情感分析（保持原有逻辑）
-                            result = sentiment_analysis(text)
-                            labels = result['labels']
-                            scores = result['scores']
-                            
-                            # 构建结果记录（保持原有输出格式）
-                            record = {
-                                "is_positive": int(scores[labels.index('正面')] >= 0.5),
-                                "positive_probs": scores[labels.index('正面')],
-                                "negative_probs": scores[labels.index('负面')]
-                            }
-                            
-                            # 写入结果
-                            if not first_item:
-                                out_file.write(",\n")
-                            json.dump(record, out_file, ensure_ascii=False)
-                            first_item = False
-                            
-                            # 更新进度
-                            task["progress"] = (idx + 1) / total * 100
-                            pbar.update(1)
-                            
-                        except Exception as e:
-                            continue
-            
-            out_file.write("\n]")
-            task["status"] = "completed"
-            
-    except Exception as e:
-        task.update(status="error", error=str(e))
-    finally:
-        # 清理输入文件
+    def generate(self, task_id, output_dir, title, text, count, stopwords):
+        """生成词云图片"""
         try:
-            os.remove(task["input"])
-        except:
-            pass
+            logger.info(f"[{task_id}] 开始生成词云")
 
-@app.get("/task/status/<task_id>")
-async def get_status(request, task_id):
-    """获取任务状态"""
-    if task := task_mgr.tasks.get(task_id):
-        return response.json({
-            "status": task["status"],
-            "progress": f"{task['progress']:.1f}%",
-            "error": task["error"]
-        })
-    return response.json({"error": "无效的任务ID"}, status=404)
+            # 分词处理
+            words = jieba.lcut(text)
+            filtered = [w for w in words if len(w) > 1 and w not in stopwords]
+            logger.debug(f"[{task_id}] 有效词汇量: {len(filtered)}")
 
-@app.get("/task/result/<task_id>")
-async def download_result(request, task_id):
-    """下载结果（保持原有输出格式）"""
-    if task := task_mgr.tasks.get(task_id):
-        if task["status"] != "completed":
-            return response.json({"error": "分析未完成"}, status=400)
-        
-        if Path(task["output"]).exists():
-            return await response.file(
-                task["output"],
-                filename="comment_emotion.json",
-                mime_type="application/json"
+            # 字体配置
+            system = platform.system()
+            font_path = {
+                'Windows': os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts', 'simsun.ttc'),
+                'Darwin': '/System/Library/Fonts/STHeiti Medium.ttc',
+                'Linux': '/usr/share/fonts/wqy-microhei/wqy-microhei.ttc'
+            }.get(system)
+            logger.debug(f"[{task_id}] 使用字体: {font_path}")
+
+            # 生成词云
+            wc = WordCloud(font_path=font_path, **self.config).generate(" ".join(filtered))
+
+            # 可视化设置
+            plt.figure(figsize=(12, 10))
+            plt.imshow(wc, interpolation='bilinear')
+            plt.axis("off")
+            plt.title(
+                f'《{title}》评论词云分析\n（共{count}条有效评论）',
+                fontsize=18,
+                pad=25,
+                fontweight='bold',
+                color='#2B2B2B'
             )
-    return response.json({"error": "结果文件不存在"}, status=404)
 
-@app.listener("after_server_stop")
-async def cleanup(app, loop):
-    """清理临时文件"""
-    shutil.rmtree(app.config.TEMP_DIR, ignore_errors=True)
+            # 保存文件
+            output_path = os.path.join(output_dir, f"{task_id}_wordcloud.png")
+            plt.savefig(output_path, bbox_inches='tight')
+            plt.close()
+            logger.info(f"[{task_id}] 词云已保存: {output_path}")
+            return output_path
+        except Exception as e:
+            logger.error(f"[{task_id}] 词云生成失败: {str(e)}", exc_info=True)
+            return None
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, workers=2)
+
+class SentimentVisualizer:
+    """情感分析可视化"""
+
+    def generate_pie(self, task_id, output_dir, title, total, positive, negative):
+        """生成饼图"""
+        try:
+            logger.info(f"[{task_id}] 开始生成情感分布图")
+
+            plt.figure(figsize=(10, 8), dpi=120)
+            plt.rcParams["font.sans-serif"] = ["WenQuanYi Micro Hei"]
+            plt.rcParams["axes.unicode_minus"] = False
+
+            # 数据准备
+            labels = ['正面', '负面']
+            sizes = [positive, negative]
+            colors = ['#7BC8F6', '#FF7F7F']
+            explode = (0.05, 0)
+
+            # 绘制饼图
+            wedges, texts, autotexts = plt.pie(
+                sizes,
+                labels=labels,
+                colors=colors,
+                autopct='%1.1f%%',
+                startangle=90,
+                explode=explode,
+                shadow=True,
+                textprops={'fontsize': 12},
+                wedgeprops={'edgecolor': 'black', 'linewidth': 1}
+            )
+
+            # 样式优化
+            for autotext in autotexts:
+                autotext.set_fontweight('bold')
+
+            plt.title(
+                f'《{title}》情感分布\n总计 {total} 条评论',
+                fontsize=16,
+                pad=20,
+                fontweight='bold'
+            )
+            plt.legend(wedges, labels, title="情感分类", loc="best")
+
+            # 保存文件
+            output_path = os.path.join(output_dir, f"{task_id}_sentiment.png")
+            plt.savefig(output_path, bbox_inches='tight')
+            plt.close()
+            logger.info(f"[{task_id}] 情感分布图已保存: {output_path}")
+            return output_path
+        except Exception as e:
+            logger.error(f"[{task_id}] 饼图生成失败: {str(e)}", exc_info=True)
+            return None
+
+
+class SentimentAnalyzer:
+    """情感分析引擎"""
+
+    _model = None
+
+    def __init__(self):
+        if not SentimentAnalyzer._model:
+            logger.info("初始化情感分析模型...")
+            try:
+                SentimentAnalyzer._model = pipeline(
+                    Tasks.text_classification,
+                    'iic/nlp_structbert_sentiment-classification_chinese-base'
+                )
+                logger.info("模型加载成功")
+            except Exception as e:
+                logger.error("模型初始化失败", exc_info=True)
+                raise
+
+    def analyze(self, comments, task_id):
+        """执行情感分析"""
+        logger.info(f"[{task_id}] 开始分析 {len(comments)} 条评论")
+        positive = 0
+        negative = 0
+
+        try:
+            with tqdm(total=len(comments), desc=f"分析 {task_id}") as pbar:
+                for idx, text in enumerate(comments):
+                    try:
+                        result = self._model(text)
+                        label = max(zip(result['labels'], result['scores']), key=lambda x: x[1])[0]
+                        positive += 1 if label == '正面' else 0
+                        negative += 1 if label == '负面' else 0
+
+                        if (idx + 1) % 100 == 0:
+                            logger.debug(f"[{task_id}] 已处理 {idx + 1} 条，正面率 {positive / (idx + 1):.2%}")
+                        pbar.update(1)
+                    except Exception as e:
+                        logger.warning(f"[{task_id}] 第 {idx + 1} 条分析失败: {str(e)}")
+            logger.info(f"[{task_id}] 分析完成 | 正面: {positive} | 负面: {negative}")
+            return positive, negative
+        except Exception as e:
+            logger.error(f"[{task_id}] 分析中断: {str(e)}", exc_info=True)
+            return 0, 0
+
+
+class AnalysisPipeline:
+    """分析流水线"""
+
+    def __init__(self, input_dir, output_dir, task_id):
+        self.task_id = task_id
+        self.logger = logging.getLogger(f"SA-Processor.Task.{task_id}")
+        self.input_path = os.path.join(input_dir, f"{task_id}.json")
+        self.output_dir = output_dir
+        self.data = {
+            "title": "",
+            "comments": [],
+            "raw_text": ""
+        }
+        self.stopwords = self._load_stopwords()
+
+    def _load_stopwords(self):
+        """加载停用词表"""
+        logger.info(f"[{self.task_id}] 加载停用词表")
+        stopwords = set()
+        for filename in ['cn_all_stopwords.txt', 'baidu_stopwords.txt']:
+            try:
+                with open(os.path.join('stopwords', filename), 'r', encoding='utf-8') as f:
+                    stopwords.update(line.strip() for line in f)
+            except Exception as e:
+                logger.warning(f"[{self.task_id}] 停用词文件 {filename} 加载失败: {str(e)}")
+        return stopwords
+
+    def load_data(self):
+        """加载数据文件"""
+        try:
+            logger.info(f"[{self.task_id}] 加载数据文件: {self.input_path}")
+            with open(self.input_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                self.data['title'] = data.get('movie_title', '未知电影')
+                self.data['comments'] = [
+                    c['comment_content'].strip()
+                    for c in data.get('comment_list', [])
+                    if c['comment_content'].strip()
+                ]
+                self.data['raw_text'] = " ".join(self.data['comments'])
+            logger.info(f"[{self.task_id}] 载入 {len(self.data['comments'])} 条有效评论")
+        except Exception as e:
+            logger.error(f"[{self.task_id}] 数据加载失败", exc_info=True)
+            raise
+
+    def execute(self):
+        """执行完整分析流程"""
+        try:
+            # 情感分析
+            analyzer = SentimentAnalyzer()
+            positive, negative = analyzer.analyze(self.data['comments'], self.task_id)
+
+            # 可视化
+            visualizer = SentimentVisualizer()
+            cloud_gen = CommentWordCloud()
+
+            pie_path = visualizer.generate_pie(
+                self.task_id,
+                self.output_dir,
+                self.data['title'],
+                len(self.data['comments']),
+                positive,
+                negative
+            )
+
+            wordcloud_path = cloud_gen.generate(
+                self.task_id,
+                self.output_dir,
+                self.data['title'],
+                self.data['raw_text'],
+                len(self.data['comments']),
+                self.stopwords
+            )
+
+            # 打包结果
+            return self._package_results(pie_path, wordcloud_path)
+        except Exception as e:
+            logger.error(f"[{self.task_id}] 分析流程异常终止", exc_info=True)
+            raise
+
+    def _package_results(self, *paths):
+        """打包分析结果"""
+        try:
+            zip_path = os.path.join(self.output_dir, f"{self.task_id}.zip")
+            with zipfile.ZipFile(zip_path, 'w') as zipf:
+                for path in paths:
+                    if path and os.path.exists(path):
+                        zipf.write(path, os.path.basename(path))
+            logger.info(f"[{self.task_id}] 结果已打包: {zip_path}")
+            return zip_path
+        except Exception as e:
+            logger.error(f"[{self.task_id}] 打包失败", exc_info=True)
+            return None
+
+
+if __name__ == '__main__':
+    # 独立运行时的日志配置
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler("analysis.log"),
+            logging.StreamHandler()
+        ]
+    )
+
+    try:
+        pipeline = AnalysisPipeline("data", "output", "test_task")
+        pipeline.load_data()
+        result_path = pipeline.execute()
+        logging.info(f"测试任务完成: {result_path}")
+    except Exception as e:
+        logging.error(f"测试失败: {str(e)}", exc_info=True)
