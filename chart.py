@@ -1,6 +1,5 @@
 import os
 import matplotlib.pyplot as plt
-import numpy as np
 import json
 import jieba
 from wordcloud import WordCloud

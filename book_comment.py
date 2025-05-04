@@ -4,14 +4,9 @@ import time
 import os
 import matplotlib
 matplotlib.use('Agg')  # 非交互式后端，避免 GUI 线程冲突
-import matplotlib.pyplot as plt
-import numpy as np
-import json
-import jieba
-from wordcloud import WordCloud
-import platform
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
+import parse
 
 app = Sanic("mySanic")
 executor = None
@@ -29,115 +24,119 @@ os.makedirs("upload", exist_ok=True)
 os.makedirs("sentiment-analysis", exist_ok=True)
 
 
-class CommentWordCloud:
-    """词云类"""
-    _cached_stopwords = None  # 类级缓存
-
-    def __init__(self, label):
-        self.stopword_file_names = ['cn_all_stopwords.txt', 'baidu_stopwords.txt', 'scu_stopwords.txt', 'hit_stopwords.txt',
-                               'cn_stopwords.txt', 'my_stopwords.txt']  # 停用词文件名
-        self.width = 1600
-        self.height = 1200
-        self.max_words = 300
-        self.background_color = 'white'
-        self.scale = 2
-        self.collocations = False
-        self.label = label
-
-    def load_comments(self):
-        """加载评论"""
-        try:
-            all_comment = ""
-            file = self.label + ".jsonl"
-            path = os.path.join("upload", file)
-            with open(path, 'r', encoding="utf-8") as comment_file:
-                for line_num, line in enumerate(comment_file, 1):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        data = json.loads(line)
-                        comment = data.get("content", "")
-                        all_comment += comment + " "
-                    except json.JSONDecodeError:
-                        print(f"JSON解析失败（第{line_num}行）")
-                    except Exception as e:
-                        print(f"处理第{line_num}行时出错: {e}")
-
-            if not all_comment.strip():
-                print("无有效评论内容")
-                return None
-
-            return all_comment
-        except FileNotFoundError:
-            print(f"文件 {path} 未找到")
-            return None
-        except Exception as e:
-            print(f"发生未预期错误: {e}")
-            return None
-
-    def load_stopwords(self):
-        """加载停用词"""
-        if CommentWordCloud._cached_stopwords is None:
-            stopwords = set()
-            for file in self.stopword_file_names:
-                full_path = os.path.join('stopwords', file)
-                try:
-                    with open(full_path, 'r', encoding='utf-8') as f:
-                        stopwords.update(line.strip() for line in f)
-                except FileNotFoundError:
-                    print(f"未找到停用词文件 '{full_path}'，已跳过。")
-            return stopwords
-        return self._cached_stopwords.copy()
-
-
-
-    def make_wordcloud(self):
-        """生成词云"""
-
-        # 中文分词及过滤
-        all_comments = self.load_comments()
-        words = jieba.lcut(all_comments)
-        stopwords = self.load_stopwords()
-        filtered_words = [word for word in words if len(word) > 1 and word not in stopwords and word.strip()]
-        cut_text = " ".join(filtered_words)
-
-        # 跨平台字体设置
-        system = platform.system()
-        if system == 'Windows':
-            font_path = os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts', 'simsun.ttc')
-        elif system == 'Darwin':
-            font_path = '/System/Library/Fonts/STHeiti Medium.ttc'
-        else:
-            font_path = '/usr/share/fonts/wqy-microhei/wqy-microhei.ttc'
-
-        # 生成词云
-        wordcloud = WordCloud(
-            width=self.width,
-            height=self.height,
-            font_path=font_path,
-            max_words=self.max_words,
-            background_color='white',
-            scale=2,
-            collocations=False
-        ).generate(cut_text)
-
-        plt.figure(figsize=(10, 8))
-        plt.imshow(wordcloud, interpolation='bilinear')
-        plt.axis("off")
-
-        # 保存词云
-        output_dir = os.path.join(os.getcwd(), "sentiment-analysis")
-        output_path = os.path.join(output_dir, str(self.label)+".png")
-        wordcloud.to_file(output_path)
-        print(f"词云图片已保存至: {output_path}")
+# class CommentWordCloud:
+#     """词云类"""
+#     _cached_stopwords = None  # 类级缓存
+#
+#     def __init__(self, label):
+#         self.stopword_file_names = ['cn_all_stopwords.txt', 'baidu_stopwords.txt', 'scu_stopwords.txt', 'hit_stopwords.txt',
+#                                'cn_stopwords.txt', 'my_stopwords.txt']  # 停用词文件名
+#         self.width = 1600
+#         self.height = 1200
+#         self.max_words = 300
+#         self.background_color = 'white'
+#         self.scale = 2
+#         self.collocations = False
+#         self.label = label
+#
+#     def load_comments(self):
+#         """加载评论"""
+#         try:
+#             all_comment = ""
+#             file = self.label + ".jsonl"
+#             path = os.path.join("upload", file)
+#             with open(path, 'r', encoding="utf-8") as comment_file:
+#                 for line_num, line in enumerate(comment_file, 1):
+#                     line = line.strip()
+#                     if not line:
+#                         continue
+#                     try:
+#                         data = json.loads(line)
+#                         comment = data.get("content", "")
+#                         all_comment += comment + " "
+#                     except json.JSONDecodeError:
+#                         print(f"JSON解析失败（第{line_num}行）")
+#                     except Exception as e:
+#                         print(f"处理第{line_num}行时出错: {e}")
+#
+#             if not all_comment.strip():
+#                 print("无有效评论内容")
+#                 return None
+#
+#             return all_comment
+#         except FileNotFoundError:
+#             print(f"文件 {path} 未找到")
+#             return None
+#         except Exception as e:
+#             print(f"发生未预期错误: {e}")
+#             return None
+#
+#     def load_stopwords(self):
+#         """加载停用词"""
+#         if CommentWordCloud._cached_stopwords is None:
+#             stopwords = set()
+#             for file in self.stopword_file_names:
+#                 full_path = os.path.join('stopwords', file)
+#                 try:
+#                     with open(full_path, 'r', encoding='utf-8') as f:
+#                         stopwords.update(line.strip() for line in f)
+#                 except FileNotFoundError:
+#                     print(f"未找到停用词文件 '{full_path}'，已跳过。")
+#             return stopwords
+#         return self._cached_stopwords.copy()
+#
+#
+#
+#     def make_wordcloud(self):
+#         """生成词云"""
+#
+#         # 中文分词及过滤
+#         all_comments = self.load_comments()
+#         words = jieba.lcut(all_comments)
+#         stopwords = self.load_stopwords()
+#         filtered_words = [word for word in words if len(word) > 1 and word not in stopwords and word.strip()]
+#         cut_text = " ".join(filtered_words)
+#
+#         # 跨平台字体设置
+#         system = platform.system()
+#         if system == 'Windows':
+#             font_path = os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts', 'simsun.ttc')
+#         elif system == 'Darwin':
+#             font_path = '/System/Library/Fonts/STHeiti Medium.ttc'
+#         else:
+#             font_path = '/usr/share/fonts/wqy-microhei/wqy-microhei.ttc'
+#
+#         # 生成词云
+#         wordcloud = WordCloud(
+#             width=self.width,
+#             height=self.height,
+#             font_path=font_path,
+#             max_words=self.max_words,
+#             background_color='white',
+#             scale=2,
+#             collocations=False
+#         ).generate(cut_text)
+#
+#         plt.figure(figsize=(10, 8))
+#         plt.imshow(wordcloud, interpolation='bilinear')
+#         plt.axis("off")
+#
+#         # 保存词云
+#         output_dir = os.path.join(os.getcwd(), "sentiment-analysis")
+#         output_path = os.path.join(output_dir, str(self.label)+".png")
+#         wordcloud.to_file(output_path)
+#         print(f"词云图片已保存至: {output_path}")
 
 
 # 评论分析
-def analyser(label):
-    cloud=CommentWordCloud(label)
-    if cloud.load_comments():
-        cloud.make_wordcloud()
+def analyser(id):
+    try:
+        in_path = os.path.join("upload")
+        out_path = os.path.join("sentiment-analysis")
+        comment_analyser = parse.Comment_analyser(in_path, out_path, id)
+        comment_analyser.make_analyse()
+    except Exception as e:
+        print(f"影评分析失败：{str(e)}")
 
 
 # 上传电影数据文件接口
@@ -157,8 +156,8 @@ async def upload(request):
 
         # 生成唯一文件名
         now_time = time.strftime('%Y%m%d%H%M%S', time.localtime())
-        label = now_time + "_" + os.path.splitext(filename)[0]
-        filename = label + ".jsonl"
+        id = now_time + "_" + os.path.splitext(filename)[0]
+        filename = id + ".jsonl"
         path = os.path.join("upload", filename)
 
         # 保存文件
@@ -166,10 +165,10 @@ async def upload(request):
             f.write(file.body)
 
         # 提交后台任务
-        app.ctx.executor.submit(analyser, label)  # 直接提交不等待
+        app.ctx.executor.submit(analyser, id)  # 直接提交不等待
 
         # 生成下载链接（label 即图片文件名前缀）
-        download_link = f"/v1/image/download?filename={label}.png"
+        download_link = f"/v1/image/download?filename={id}.zip"
 
         return res_json({
             "code": 1,
@@ -184,10 +183,9 @@ async def upload(request):
         return res_json({"code": 0, "msg": f"服务器错误: {str(e)}"}, ensure_ascii=False)
 
 
-# 新增下载接口 ----------------------------------------------------
 @app.route("/v1/image/download", methods=['GET'])
 async def download_image(request):
-    """下载生成的词云图片"""
+    """下载生成压缩包图片"""
     try:
         filename = request.args.get("filename")
         if not filename:
@@ -209,30 +207,6 @@ async def download_image(request):
         )
     except Exception as e:
         return res_json({"code": 0, "msg": f"服务器错误: {str(e)}"}, ensure_ascii=False)
-
-
-
-# # 获取图书信息
-# @app.route("/v1/book/info", methods=['GET'])
-# async def get_books_info(request):
-#     book_id = request.args.get('book_id')
-#     if not book_id:
-#         return res_json({"code": 0, "msg": "缺少 book_id 参数"}, ensure_ascii=False)
-#
-#     # 示例数据，替换为实际数据库查询
-#     book_info = {"id": book_id, "title": "示例图书"}
-#     return res_json({"code": 1, "msg": "成功", "data": book_info}, ensure_ascii=False)
-#
-# # 获取书评信息
-# @app.route("/v1/book/comment", methods=['GET'])
-# async def get_book_comments(request):
-#     book_id = request.args.get('book_id')
-#     if not book_id:
-#         return res_json({"code": 0, "msg": "缺少 book_id 参数"}, ensure_ascii=False)
-#
-#     # 示例数据，替换为实际查询
-#     comments = [{"id": 1, "content": "好评！"}]
-#     return res_json({"code": 1, "msg": "成功", "data": comments}, ensure_ascii=False)
 
 
 if __name__ == '__main__':
