@@ -88,7 +88,7 @@ class CommentHistogram:
             return
 
         # 配置可视化参数
-        plt.rcParams["font.sans-serif"] = ["Microsoft YaHei"]  # 中文字体
+        plt.rcParams["font.sans-serif"] = ["WenQuanYi Micro Hei"]  # Ubuntu 中文字体名称
         plt.rcParams["axes.unicode_minus"] = False
         plt.figure(figsize=(10, 8), dpi=120)
 
