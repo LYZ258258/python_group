@@ -147,10 +147,10 @@ async def handle_upload(request):
                 "task_id": task_id,
                 "download_url": f"/v1/image/download?filename={task_id}.zip"
             }
-        })
+        }, ensure_ascii=False)
     except Exception as e:
         logger.error(f"上传处理异常: {str(e)}", exc_info=True)
-        return res_json({"code": 0, "msg": "服务器错误"}, status=500)
+        return res_json({"code": 0, "msg": "服务器错误"}, ensure_ascii=False)
 
 
 @app.route("/v1/image/download", methods=['GET'])
@@ -161,21 +161,21 @@ async def handle_download(request):
         filename = request.args.get("filename")
         if not filename:
             logger.warning("非法下载请求: 缺少文件名")
-            return res_json({"code": 0, "msg": "缺少filename参数"}, status=400)
+            return res_json({"code": 0, "msg": "缺少filename参数"}, ensure_ascii=False)
 
         # 安全验证
         if not filename.endswith('.zip') or '/' in filename:
             logger.warning(f"潜在路径遍历攻击: {filename}")
-            return res_json({"code": 0, "msg": "非法文件请求"}, status=403)
+            return res_json({"code": 0, "msg": "非法文件请求"}, ensure_ascii=False)
 
         file_path = os.path.abspath(os.path.join("sentiment-analysis", filename))
         if not file_path.startswith(os.path.abspath("sentiment-analysis")):
             logger.warning(f"路径越界尝试: {filename}")
-            return res_json({"code": 0, "msg": "非法文件路径"}, status=403)
+            return res_json({"code": 0, "msg": "非法文件路径"}, ensure_ascii=False)
 
         if not os.path.exists(file_path):
             logger.warning(f"文件不存在: {filename}")
-            return res_json({"code": 0, "msg": "文件未找到"}, status=404)
+            return res_json({"code": 0, "msg": "文件未找到"}, ensure_ascii=False)
 
         logger.info(f"📤 开始下载: {filename}")
         return await file(
@@ -184,7 +184,7 @@ async def handle_download(request):
         )
     except Exception as e:
         logger.error(f"下载处理异常: {str(e)}", exc_info=True)
-        return res_json({"code": 0, "msg": "下载错误"}, status=500)
+        return res_json({"code": 0, "msg": "下载错误"}, ensure_ascii=False)
 
 
 @app.exception(Exception)

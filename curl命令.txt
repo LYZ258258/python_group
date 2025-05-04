@@ -1,0 +1,5 @@
+# 文件上传测试
+curl -X POST -F "file=@test.json" http://localhost:8000/v1/movie/crawled/upload
+
+# 结果下载测试
+curl -OJ http://localhost:8000/v1/image/download?filename=20231015123000_test.zip
