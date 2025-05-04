@@ -260,7 +260,7 @@ class Comment_analyser:
             return None
 
         # 生成文件名
-        zip_filename = f"{self.id}_分析图表.zip"
+        zip_filename = f"{self.id}.zip"
         zip_path = os.path.join(self.out_path, zip_filename)
 
         try:
