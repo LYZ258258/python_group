@@ -3,61 +3,46 @@ from sanic.response import json as res_json, file
 import time
 import os
 import matplotlib
-matplotlib.use('Agg')  # 非交互式后端，避免 GUI 线程冲突
+
+matplotlib.use('Agg')
 from concurrent.futures import ThreadPoolExecutor
 import parse
 import logging
 from logging.handlers import TimedRotatingFileHandler
 
+# 初始化Sanic应用
 app = Sanic("mySanic")
-executor = None
+
 
 # 配置日志系统
 def setup_logging():
-    """配置日志记录"""
+    """统一日志配置"""
     log_dir = "logs"
     os.makedirs(log_dir, exist_ok=True)
 
-    # 通用日志格式
+    # 标准格式
     formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
 
-    # 访问日志处理器
-    access_handler = TimedRotatingFileHandler(
-        os.path.join(log_dir, 'access.log'),
+    # Sanic专用日志器
+    sanic_logger = logging.getLogger("mySanic")
+    sanic_logger.setLevel(logging.INFO)
+
+    # 按天切割的日志文件
+    file_handler = TimedRotatingFileHandler(
+        os.path.join(log_dir, 'sanic.log'),
         when='midnight',
-        interval=1,
         backupCount=7,
         encoding='utf-8'
     )
-    access_handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
 
-    # 错误日志处理器
-    error_handler = TimedRotatingFileHandler(
-        os.path.join(log_dir, 'error.log'),
-        when='midnight',
-        interval=1,
-        backupCount=7,
-        encoding='utf-8'
-    )
-    error_handler.setFormatter(formatter)
+    sanic_logger.addHandler(file_handler)
+    app.logger = sanic_logger  # 手动绑定到app
 
-    # 配置Sanic日志器
-    sanic_access_logger = logging.getLogger('sanic.access')
-    sanic_access_logger.addHandler(access_handler)
-    sanic_access_logger.setLevel(logging.INFO)
 
-    sanic_error_logger = logging.getLogger('sanic.error')
-    sanic_error_logger.addHandler(error_handler)
-    sanic_error_logger.setLevel(logging.ERROR)
-
-    # 配置根日志器
-    root_logger = logging.getLogger()
-    root_logger.addHandler(error_handler)
-    root_logger.setLevel(logging.ERROR)
-
-# 初始化日志配置
+# 执行日志配置
 setup_logging()
 
 @app.before_server_start
