@@ -1,0 +1,4 @@
+spring:
+  servlet:
+    multipart:
+      enabled: false
