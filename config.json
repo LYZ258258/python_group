@@ -1,0 +1,18 @@
+{
+    "movie_id": "1292052",
+    "max_pages": 20,
+    "request_interval": [5, 10],
+    "max_retries": 3,
+    "timeout": 20,
+    "concurrent_workers": 3,
+    "proxy_api_url": "http://proxy.siyetian.com/apis_get.html?token=AesJWLNpWS45EVJdXTqV1dORUS14ERNhnTR1STqFUeORVQw0karBTTEFUeOp2ax4kaVhnT6lFN.QM3gTN2MjN0cTM&limit=30&type=0&time=&data_format=json&showTimeEnd=true",
+    "proxy_credentials": {
+        "user": "19820394375",
+        "pass": "Yu525324"
+    },
+    "cookie": "ll=\"118318\"; bid=bMcOThQDb0U; __utmc=30149280; _vwo_uuid_v2=DC5E326F9DF9F9A5D67504F16C282C253|1cd901f112ebe89e579e007137783010; push_noty_num=0; push_doumail_num=0; HMACCOUNT=8DE783B838619D96; __utmv=30149280.26590; Hm_lvt_19fc7b106453f97b6a84d64302f21a04=1743598406; Hm_lpvt_19fc7b106453f97b6a84d64302f21a04=1743598406; HMACCOUNT=8DE783B838619D96; viewed=\"1007305\"; Hm_lvt_6d4a8cfea88fa457c3127e14fb5fabc2=1743596167; talionusr=\"eyJpZCI6ICIyNjU5MDUyNDUiLCAibmFtZSI6ICJcdTljN2MifQ==\"; dbcl2=\"265905245:GU0KmZCJ4sQ\"; ck=S1Zq; frodotk_db=\"76e7612acc18591064b6238064490b30\"; __utmz=30149280.1746019421.23.12.utmcsr=movie.douban.com|utmccn=(referral)|utmcmd=referral|utmcct=/subject/36415357/; ap_v=0,6.0; __utma=30149280.1844996941.1741441293.1746019421.1746030499.24; __utmt=1; __utmb=30149280.8.10.1746030499; frodotk=\"ea268bbff5a4559dbe73a33fe0ed00d7\"; _gid=GA1.2.998638527.1746032716; Hm_lpvt_6d4a8cfea88fa457c3127e14fb5fabc2=1746032718; _ga_Y4GN1R87RG=GS1.1.1746032716.9.1.1746032718.0.0.0; _ga=GA1.1.670582272.1741450769"
+}
+
+
+
+
