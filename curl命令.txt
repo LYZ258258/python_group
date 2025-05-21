@@ -1,0 +1,5 @@
+上传命令
+curl.exe http://localhost:8000/v1/book/crawled/upload -F "file=@movie_info.json"
+
+下载链接
+http://localhost:8000/v1/movie/comment/sentiment-analysis/package?zip_path=
